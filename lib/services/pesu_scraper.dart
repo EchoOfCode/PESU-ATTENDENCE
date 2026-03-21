@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import '../models/attendance.dart';
+import '../models/timetable.dart';
 
 /// Scrapes PESU Academy for attendance data.
 ///
@@ -137,6 +139,83 @@ class PesuScraper {
     }
 
     return result;
+  }
+
+  // -- Timetable scraping --
+
+  Future<Timetable> scrapeTimetable() async {
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final response = await _get('/s/studentProfilePESUAdmin', queryParams: {
+      'menuId': '669',
+      'controllerMode': '6415',
+      'actionType': '5',
+      '_': ts,
+    });
+
+    final html = response.body;
+
+    final templateRegex = RegExp(r'var timeTableTemplateDetailsJson=(.*?);', dotAll: true);
+    final scheduleRegex = RegExp(r'var timeTableJson=(.*?);', dotAll: true);
+
+    final templateMatch = templateRegex.firstMatch(html);
+    final scheduleMatch = scheduleRegex.firstMatch(html);
+
+    if (templateMatch == null || scheduleMatch == null) {
+      throw PesuScraperException('Could not parse timetable data. Layout may have changed.');
+    }
+
+    final slotsJson = jsonDecode(templateMatch.group(1)!) as List<dynamic>;
+    final scheduleJson = jsonDecode(scheduleMatch.group(1)!) as Map<String, dynamic>;
+
+    final Map<int, Map<String, String>> slotTimes = {};
+    for (var s in slotsJson) {
+      final map = s as Map<String, dynamic>;
+      final orderedBy = map['orderedBy'] as int;
+      slotTimes[orderedBy] = {
+        'start': map['startTime'].toString(),
+        'end': map['endTime'].toString(),
+      };
+    }
+
+    final List<ClassSlot> results = [];
+
+    for (final entry in scheduleJson.entries) {
+      final key = entry.key;
+      final valueList = entry.value as List<dynamic>;
+
+      if (!key.startsWith('ttDivText_') || valueList.isEmpty) continue;
+
+      final parts = key.split('_');
+      if (parts.length < 3) continue;
+
+      final dayIndex = int.tryParse(parts[1]); // 1=Mon .. 6=Sat
+      final slotIndex = int.tryParse(parts[2]);
+
+      if (dayIndex == null || slotIndex == null || dayIndex > 7) continue;
+
+      final timeInfo = slotTimes[slotIndex];
+      if (timeInfo == null) continue;
+
+      var subjectRaw = valueList.first.toString();
+      if (subjectRaw.startsWith('ttSubject&&')) {
+        subjectRaw = subjectRaw.replaceFirst('ttSubject&&', '');
+      }
+
+      final subjParts = subjectRaw.split('-');
+      String cleanTitle = subjectRaw;
+      if (subjParts.length > 1) {
+        cleanTitle = subjParts.sublist(1).join('-').trim();
+      }
+
+      results.add(ClassSlot(
+        dayOfWeek: dayIndex,
+        startTime: timeInfo['start']!,
+        endTime: timeInfo['end']!,
+        subjectTitle: cleanTitle.isEmpty ? subjectRaw : cleanTitle,
+      ));
+    }
+
+    return Timetable(slots: results);
   }
 
   // -- HTTP helpers with cookie management and retries --

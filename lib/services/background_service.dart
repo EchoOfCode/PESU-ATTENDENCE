@@ -49,12 +49,20 @@ Future<bool> _refreshAttendance() async {
   final creds = await StorageService.getCredentials();
   if (creds.username == null || creds.password == null) return true;
 
-  final data = await PesuScraper().fetchAttendance(
+  final scraper = PesuScraper();
+  final data = await scraper.fetchAttendance(
     username: creds.username!,
     password: creds.password!,
   );
-
   await StorageService.saveAttendanceData(data);
+
+  try {
+    final tt = await scraper.scrapeTimetable();
+    await StorageService.saveTimetable(tt);
+  } catch (_) {
+    // Skip if timetable scraping fails, don't break attendance sync
+  }
+
   await StorageService.syncToWidget(data);
   return true;
 }

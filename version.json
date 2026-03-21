@@ -1,7 +1,7 @@
 {
-  "latest_version": "1.0.1",
-  "latest_build": 2,
+  "latest_version": "1.0.2",
+  "latest_build": 3,
   "min_supported_version": "1.0.0",
-  "release_notes": "✨ Widget Overhaul: Timetable, academic calendar, and funny quotes!",
+  "release_notes": "✨ Added Auto-Sync from PESU Academy for the timetable!",
   "download_url": "https://github.com/EchoOfCode/PESU-ATTENDENCE/releases/latest"
 }
