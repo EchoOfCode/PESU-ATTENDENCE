@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingVertical="10dp"
+    android:paddingHorizontal="16dp">
+
+    <ImageView
+        android:id="@+id/subject_dot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:src="@drawable/dot_shape"
+        android:layout_marginEnd="12dp" />
+
+    <TextView
+        android:id="@+id/subject_text"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:textColor="#E8EAED"
+        android:textSize="14sp"
+        android:fontFamily="sans-serif"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:text="Subject Name - 90.00%" />
+
+</LinearLayout>
