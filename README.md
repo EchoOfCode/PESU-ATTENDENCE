@@ -11,7 +11,7 @@
 - **Dynamic Homescreen Widget**: Your live attendance percentage, right on your Android homescreen. Refreshes automatically in the background every hour, or manually via a tap.
 - ** Direct Widget Pinning**: Tap a single button inside the app to instantly prompt adding the widget to your homescreen (Android 8.0+).
 - ** 3 Premium UI Themes (Syncs to Widget!)**:
-  - `Default`: Sleek, dark "hacker" aesthetic with neon accents.
+  - `Default`: Sleek, dark aesthetic with neon accents.
   - `Procrastinator (Funny)`: Brutalist, loud style with heavy borders and sarcastic status messages. 
   - `UwU Kawaii (Cute)`: Maximum rounded corners, pastel colors, and bubbly aesthetic to soften the blow of low attendance.
 - ** Smart Bunk Calculator**: Slide up the bottom sheet to calculate exactly how many classes you can skip (or must attend) to maintain a specific target percentage.
