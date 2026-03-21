@@ -21,7 +21,7 @@
 ---
 
 ## 📸 Screenshots
-*(Coming soon — drop your screenshots in an assets folder and link them here!)*
+*(Coming soon)*
 
 ---
 
