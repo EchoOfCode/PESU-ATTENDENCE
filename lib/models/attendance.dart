@@ -1,8 +1,6 @@
-/// Data models for PESU Academy attendance data.
-library;
-
 import 'dart:convert';
 
+/// Represents a single subject's attendance data scraped from PESU Academy.
 class SubjectAttendance {
   final String code;
   final String title;
@@ -36,7 +34,7 @@ class SubjectAttendance {
     );
   }
 
-  /// Color bucket for this subject's attendance.
+  /// Quick colour bucket for UI indicators.
   AttendanceLevel get level {
     if (percentage == null) return AttendanceLevel.unknown;
     if (percentage! >= 85) return AttendanceLevel.good;
@@ -44,40 +42,31 @@ class SubjectAttendance {
     return AttendanceLevel.danger;
   }
 
-  /// How many consecutive classes can be bunked while staying >= targetPercentage.
-  /// Returns 0 if already below target or no data.
-  int canBunk(double targetPercentage) {
+  /// How many consecutive classes can be skipped and still stay >= [target]%.
+  int canBunk(double target) {
     if (attended == null || total == null || total == 0) return 0;
-    final targetFraction = targetPercentage / 100.0;
-    // We want: attended / (total + x) >= targetFraction
-    // => attended >= targetFraction * (total + x)
-    // => x <= (attended / targetFraction) - total
-    final maxBunkable = (attended! / targetFraction) - total!;
-    return maxBunkable < 0 ? 0 : maxBunkable.floor();
+    final f = target / 100.0;
+    final max = (attended! / f) - total!;
+    return max < 0 ? 0 : max.floor();
   }
 
-  /// How many classes need to be attended to reach targetPercentage.
-  /// Returns 0 if already at or above target.
-  /// Returns -1 if it is mathematically impossible (e.g. target is 100% but a class is already missed).
-  int mustAttend(double targetPercentage) {
+  /// How many extra classes must be attended to reach [target]%.
+  /// Returns -1 when the target is mathematically impossible.
+  int mustAttend(double target) {
     if (attended == null || total == null || total == 0) return 0;
-    if (percentage != null && percentage! >= targetPercentage) return 0;
-    
-    if (targetPercentage >= 100.0) {
-      if (attended! < total!) return -1; // impossible to get 100% if missed any
-      return 0; // already 100%
+    if (percentage != null && percentage! >= target) return 0;
+
+    if (target >= 100.0) {
+      return attended! < total! ? -1 : 0;
     }
-    
-    final targetFraction = targetPercentage / 100.0;
-    // We want: (attended + x) / (total + x) >= targetFraction
-    // => attended + x >= targetFraction * total + targetFraction * x
-    // => (1 - targetFraction) * x >= targetFraction * total - attended
-    // => x >= (targetFraction * total - attended) / (1 - targetFraction)
-    final needed = ((targetFraction * total!) - attended!) / (1 - targetFraction);
+
+    final f = target / 100.0;
+    final needed = ((f * total!) - attended!) / (1 - f);
     return needed <= 0 ? 0 : needed.ceil();
   }
 }
 
+/// Aggregate attendance snapshot used for caching and widget sync.
 class AttendanceData {
   final List<SubjectAttendance> subjects;
   final double? overallPercentage;
@@ -112,13 +101,13 @@ class AttendanceData {
         jsonDecode(jsonString) as Map<String, dynamic>);
   }
 
-  /// Compute overall percentage from individual subjects.
+  /// Weighted overall average across all subjects that have data.
   static double? computeOverall(List<SubjectAttendance> subjects) {
-    final withData = subjects.where(
+    final valid = subjects.where(
         (s) => s.attended != null && s.total != null && s.total! > 0);
-    if (withData.isEmpty) return null;
-    final totalAttended = withData.fold<int>(0, (sum, s) => sum + s.attended!);
-    final totalClasses = withData.fold<int>(0, (sum, s) => sum + s.total!);
+    if (valid.isEmpty) return null;
+    final totalAttended = valid.fold<int>(0, (sum, s) => sum + s.attended!);
+    final totalClasses = valid.fold<int>(0, (sum, s) => sum + s.total!);
     if (totalClasses == 0) return null;
     return (totalAttended / totalClasses) * 100;
   }

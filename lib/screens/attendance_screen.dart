@@ -1,18 +1,17 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/attendance.dart';
 import '../services/background_service.dart';
 import '../services/pesu_scraper.dart';
 import '../services/storage_service.dart';
-import 'login_screen.dart';
-
 import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
+import 'login_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final AttendanceData? initialData;
-
   const AttendanceScreen({super.key, this.initialData});
 
   @override
@@ -34,7 +33,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..forward();
-
     _loadStoredData();
   }
 
@@ -48,7 +46,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     final stored = await StorageService.getAttendanceData();
     final prefs = await SharedPreferences.getInstance();
     final target = prefs.getDouble('bunk_target') ?? 75.0;
-    
     if (mounted) {
       setState(() {
         if (stored != null) _data = stored;
@@ -66,13 +63,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   Future<void> _refresh() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
-
     try {
       final creds = await StorageService.getCredentials();
       if (creds.username == null || creds.password == null) return;
 
-      final scraper = PesuScraper();
-      final data = await scraper.fetchAttendance(
+      final data = await PesuScraper().fetchAttendance(
         username: creds.username!,
         password: creds.password!,
       );
@@ -85,7 +80,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to refresh attendance. Check connection.')),
+          const SnackBar(content: Text('Failed to refresh. Check connection.')),
         );
       }
     } finally {
@@ -123,7 +118,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
-                trailing: isSelected 
+                trailing: isSelected
                     ? Icon(Icons.check_circle, color: theme.safeColor)
                     : null,
                 onTap: () {
@@ -136,6 +131,39 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         );
       },
     );
+  }
+
+  /// Shows the bunk calculator as a bottom sheet instead of inline,
+  /// keeping the main feed clean and spacious.
+  void _showBunkCalculator() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _BunkBottomSheet(
+        subjects: _data!.subjects,
+        targetPercentage: _targetPercentage,
+        onTargetChanged: (v) {
+          _updateTarget(v);
+          // Force the bottom sheet to rebuild with new values.
+          (context as Element).markNeedsBuild();
+        },
+      ),
+    );
+  }
+
+  Future<void> _pinWidget() async {
+    try {
+      await HomeWidget.requestPinWidget(
+        name: 'AttendanceWidgetProvider',
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Widget pinning not supported on this device.')),
+        );
+      }
+    }
   }
 
   Future<void> _logout() async {
@@ -155,149 +183,145 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Edge-to-edge: grab the real system insets so we can pad manually.
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeNotifier.instance,
-      builder: (context, theme, child) {
+      builder: (context, theme, _) {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
-          body: SafeArea(
-            child: _data == null
-                ? Center(
-                    child: CircularProgressIndicator(color: theme.safeColor))
-                : RefreshIndicator(
-                    onRefresh: _refresh,
-                    color: theme.safeColor,
-                    backgroundColor: theme.cardColor,
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: [
-                        // App bar
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Attendance',
-                                    style: theme.fontBuilder(
-                                      color: theme.textColor,
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.5,
-                                    ),
+          body: _data == null
+              ? Center(child: CircularProgressIndicator(color: theme.safeColor))
+              : RefreshIndicator(
+                  onRefresh: _refresh,
+                  color: theme.safeColor,
+                  backgroundColor: theme.cardColor,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      // Status bar spacing
+                      SliverToBoxAdapter(child: SizedBox(height: topPad + 8)),
+
+                      // Header row
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Attendance',
+                                  style: theme.fontBuilder(
+                                    color: theme.textColor,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.5,
                                   ),
                                 ),
-                                _buildIconButton(
-                                  icon: Icons.palette_outlined,
-                                  onTap: _showThemePicker,
-                                  theme: theme,
-                                ),
-                                const SizedBox(width: 8),
-                                _buildIconButton(
-                                  icon: _isRefreshing
-                                      ? Icons.hourglass_top_rounded
-                                      : Icons.refresh_rounded,
-                                  onTap: _refresh,
-                                  theme: theme,
-                                ),
-                                const SizedBox(width: 8),
-                                _buildIconButton(
-                                  icon: Icons.logout_rounded,
-                                  onTap: _logout,
-                                  theme: theme,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // Overall percentage ring
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                            child: _OverallCard(data: _data!),
-                          ),
-                        ),
-
-                        // Last updated
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Text(
-                              'Updated ${_formatTimestamp(_data!.lastUpdated)}',
-                              style: theme.fontBuilder(
-                                color: theme.secondaryTextColor,
-                                fontSize: 12,
                               ),
-                            ),
-                          ),
-                        ),
-
-                        // Bunk Calculator Card
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                            child: _BunkSummaryCard(
-                              subjects: _data!.subjects,
-                              targetPercentage: _targetPercentage,
-                              onTargetChanged: _updateTarget,
-                            ),
-                          ),
-                        ),
-
-                        // Subjects header
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                            child: Text(
-                              'SUBJECT WISE',
-                              style: theme.fontBuilder(
-                                color: theme.secondaryTextColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
+                              _iconBtn(Icons.palette_outlined, _showThemePicker, theme),
+                              const SizedBox(width: 8),
+                              _iconBtn(Icons.widgets_outlined, _pinWidget, theme),
+                              const SizedBox(width: 8),
+                              _iconBtn(
+                                _isRefreshing ? Icons.hourglass_top_rounded : Icons.refresh_rounded,
+                                _refresh,
+                                theme,
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              _iconBtn(Icons.logout_rounded, _logout, theme),
+                            ],
                           ),
                         ),
+                      ),
 
-                        // Subject cards
-                        SliverPadding(
+                      // Overall attendance card
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+                          child: _OverallCard(data: _data!, theme: theme),
+                        ),
+                      ),
+
+                      // Last updated timestamp
+                      SliverToBoxAdapter(
+                        child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final subject = _data!.subjects[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _SubjectCard(
-                                    subject: subject,
-                                    index: index,
-                                    targetPercentage: _targetPercentage,
-                                  ),
-                                );
-                              },
-                              childCount: _data!.subjects.length,
+                          child: Text(
+                            'Updated ${_fmtTimestamp(_data!.lastUpdated)}',
+                            style: theme.fontBuilder(
+                              color: theme.secondaryTextColor,
+                              fontSize: 12,
                             ),
                           ),
                         ),
+                      ),
 
-                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                      ],
-                    ),
+                      // Bunk calculator quick-access button
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                          child: _BunkQuickBar(
+                            theme: theme,
+                            subjects: _data!.subjects,
+                            targetPercentage: _targetPercentage,
+                            onTap: _showBunkCalculator,
+                          ),
+                        ),
+                      ),
+
+                      // Section label
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 14),
+                          child: Text(
+                            'SUBJECT WISE',
+                            style: theme.fontBuilder(
+                              color: theme.secondaryTextColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Subject cards
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final subject = _data!.subjects[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _SubjectCard(
+                                  subject: subject,
+                                  targetPercentage: _targetPercentage,
+                                  theme: theme,
+                                ),
+                              );
+                            },
+                            childCount: _data!.subjects.length,
+                          ),
+                        ),
+                      ),
+
+                      // Bottom nav bar padding so nothing is hidden
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: bottomPad + 24),
+                      ),
+                    ],
                   ),
-          ),
+                ),
         );
       },
     );
   }
 
-  Widget _buildIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    required AppTheme theme,
-  }) {
+  Widget _iconBtn(IconData icon, VoidCallback onTap, AppTheme theme) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -317,61 +341,104 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     );
   }
 
-  String _formatTimestamp(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
+  String _fmtTimestamp(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
+}
 
-  Widget _buildLegendRow(String range, Color color, String label, AppTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+/// A slim summary bar that shows the bunk headline and opens the full
+/// calculator bottom sheet on tap. Keeps the main feed clean.
+class _BunkQuickBar extends StatelessWidget {
+  final AppTheme theme;
+  final List<SubjectAttendance> subjects;
+  final double targetPercentage;
+  final VoidCallback onTap;
+
+  const _BunkQuickBar({
+    required this.theme,
+    required this.subjects,
+    required this.targetPercentage,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bunkable = subjects.where((s) => s.canBunk(targetPercentage) > 0);
+    final totalBunkable = bunkable.fold<int>(0, (sum, s) => sum + s.canBunk(targetPercentage));
+    final needAttend = subjects.where(
+      (s) => s.mustAttend(targetPercentage) > 0 || s.mustAttend(targetPercentage) == -1,
+    );
+    final allSafe = needAttend.isEmpty;
+    final accent = allSafe ? theme.safeColor : theme.dangerColor;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: theme.cardRadius,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: theme.cardRadius,
+            border: theme.cardBorder,
+            boxShadow: theme.cardShadow,
           ),
-          const SizedBox(width: 8),
-          Text(
-            '$range · $label',
-            style: theme.fontBuilder(color: theme.textColor.withAlpha(150), fontSize: 11),
+          child: Row(
+            children: [
+              Icon(
+                allSafe ? Icons.celebration_rounded : Icons.warning_amber_rounded,
+                color: accent,
+                size: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  allSafe
+                      ? 'You can bunk $totalBunkable class${totalBunkable == 1 ? '' : 'es'} total'
+                      : '${needAttend.length} subject${needAttend.length == 1 ? '' : 's'} need attention',
+                  style: theme.fontBuilder(
+                    color: theme.textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, color: theme.secondaryTextColor, size: 14),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ────────────────────────────────────────────────
-//  OVERALL PERCENTAGE CARD WITH RING
-// ────────────────────────────────────────────────
-
+/// The overall attendance percentage ring card.
 class _OverallCard extends StatelessWidget {
   final AttendanceData data;
+  final AppTheme theme;
 
-  const _OverallCard({required this.data});
+  const _OverallCard({required this.data, required this.theme});
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeNotifier.instance.value;
     final pct = data.overallPercentage ?? 0;
 
     Color color;
-    String statusMessage;
+    String msg;
     if (pct >= 85) {
       color = theme.safeColor;
-      statusMessage = theme.msgSafe;
+      msg = theme.msgSafe;
     } else if (pct >= 75) {
       color = theme.warningColor;
-      statusMessage = theme.msgWarning;
+      msg = theme.msgWarning;
     } else {
       color = theme.dangerColor;
-      statusMessage = theme.msgDanger;
+      msg = theme.msgDanger;
     }
 
     return Container(
@@ -384,26 +451,15 @@ class _OverallCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Percentage ring
           SizedBox(
             width: 100,
             height: 100,
             child: CustomPaint(
-              painter: _RingPainter(
-                percentage: pct,
-                color: color,
-                theme: theme,
-              ),
+              painter: _RingPainter(percentage: pct, color: color, bgColor: theme.textColor.withAlpha(20)),
               child: Center(
                 child: Text(
-                  data.overallPercentage != null
-                      ? '${pct.toStringAsFixed(1)}%'
-                      : 'N/A',
-                  style: theme.fontBuilder(
-                    color: color,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  data.overallPercentage != null ? '${pct.toStringAsFixed(1)}%' : 'N/A',
+                  style: theme.fontBuilder(color: color, fontSize: 20, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
@@ -415,25 +471,17 @@ class _OverallCard extends StatelessWidget {
               children: [
                 Text(
                   'Overall Attendance',
-                  style: theme.fontBuilder(
-                    color: theme.textColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: theme.fontBuilder(color: theme.textColor, fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  statusMessage,
-                  style: theme.fontBuilder(
-                    color: color.withAlpha(200),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  msg,
+                  style: theme.fontBuilder(color: color.withAlpha(200), fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-                _buildLegendRow('> 85%', theme.safeColor, 'Safe', theme),
-                _buildLegendRow('75-85%', theme.warningColor, 'Warning', theme),
-                _buildLegendRow('< 75%', theme.dangerColor, 'Danger', theme),
+                _legendDot('> 85%', theme.safeColor, 'Safe'),
+                _legendDot('75-85%', theme.warningColor, 'Warning'),
+                _legendDot('< 75%', theme.dangerColor, 'Danger'),
               ],
             ),
           ),
@@ -442,16 +490,12 @@ class _OverallCard extends StatelessWidget {
     );
   }
 
-  Widget _buildLegendRow(String range, Color color, String label, AppTheme theme) {
+  Widget _legendDot(String range, Color color, String label) {
     return Padding(
       padding: const EdgeInsets.only(top: 3),
       child: Row(
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 8),
           Text(
             '$range · $label',
@@ -463,38 +507,33 @@ class _OverallCard extends StatelessWidget {
   }
 }
 
-// ────────────────────────────────────────────────
-//  RING PAINTER
-// ────────────────────────────────────────────────
-
+/// Draws the percentage ring arc on the Overall card.
 class _RingPainter extends CustomPainter {
   final double percentage;
   final Color color;
-  final AppTheme theme;
+  final Color bgColor;
 
-  _RingPainter({required this.percentage, required this.color, required this.theme});
+  _RingPainter({required this.percentage, required this.color, required this.bgColor});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 6;
 
-    // Background ring.
     canvas.drawCircle(
       center,
       radius,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 8
-        ..color = theme.textColor.withAlpha(20),
+        ..color = bgColor,
     );
 
-    // Progress arc.
-    final sweepAngle = (percentage / 100) * 2 * pi;
+    final sweep = (percentage / 100) * 2 * pi;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -pi / 2,
-      sweepAngle,
+      sweep,
       false,
       Paint()
         ..style = PaintingStyle.stroke
@@ -505,43 +544,35 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _RingPainter oldDelegate) =>
-      oldDelegate.percentage != percentage || oldDelegate.color != color || oldDelegate.theme != theme;
+  bool shouldRepaint(covariant _RingPainter old) =>
+      old.percentage != percentage || old.color != color;
 }
 
-// ────────────────────────────────────────────────
-//  SUBJECT CARD
-// ────────────────────────────────────────────────
-
+/// Individual subject attendance card.
 class _SubjectCard extends StatelessWidget {
   final SubjectAttendance subject;
-  final int index;
   final double targetPercentage;
+  final AppTheme theme;
 
   const _SubjectCard({
     required this.subject,
-    required this.index,
     required this.targetPercentage,
+    required this.theme,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeNotifier.instance.value;
     final pct = subject.percentage ?? 0;
-    
+
     Color color;
     switch (subject.level) {
       case AttendanceLevel.good:
         color = theme.safeColor;
-        break;
       case AttendanceLevel.warning:
         color = theme.warningColor;
-        break;
       case AttendanceLevel.danger:
         color = theme.dangerColor;
-        break;
       case AttendanceLevel.unknown:
-      default:
         color = theme.secondaryTextColor;
     }
 
@@ -555,42 +586,30 @@ class _SubjectCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Color indicator
+          // Thin coloured indicator strip
           Container(
             width: 4,
             height: 56,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
           ),
           const SizedBox(width: 14),
-          // Subject info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   subject.title,
-                  style: theme.fontBuilder(
-                    color: theme.textColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: theme.fontBuilder(color: theme.textColor, fontSize: 14, fontWeight: FontWeight.w700),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${subject.code}  ·  ${subject.attended ?? '-'}/${subject.total ?? '-'} classes',
-                  style: theme.fontBuilder(
-                    color: theme.secondaryTextColor,
-                    fontSize: 12,
-                  ),
+                  style: theme.fontBuilder(color: theme.secondaryTextColor, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                // Bunk calculator info
-                _buildBunkInfo(theme),
+                _bunkHint(theme),
               ],
             ),
           ),
@@ -604,14 +623,8 @@ class _SubjectCard extends StatelessWidget {
               border: Border.all(color: color.withAlpha(70)),
             ),
             child: Text(
-              subject.percentage != null
-                  ? '${pct.toStringAsFixed(1)}%'
-                  : 'N/A',
-              style: theme.fontBuilder(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
+              subject.percentage != null ? '${pct.toStringAsFixed(1)}%' : 'N/A',
+              style: theme.fontBuilder(color: color, fontSize: 14, fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -619,457 +632,270 @@ class _SubjectCard extends StatelessWidget {
     );
   }
 
-  Widget _buildBunkInfo(AppTheme theme) {
-    if (subject.attended == null || subject.total == null) {
-      return const SizedBox.shrink();
-    }
+  Widget _bunkHint(AppTheme theme) {
+    if (subject.attended == null || subject.total == null) return const SizedBox.shrink();
 
     final canBunk = subject.canBunk(targetPercentage);
     final mustAttend = subject.mustAttend(targetPercentage);
 
+    late IconData icon;
+    late Color c;
+    late String text;
+
     if (canBunk > 0) {
-      return Row(
-        children: [
-          Icon(Icons.sentiment_satisfied_rounded,
-              size: 14, color: theme.safeColor),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              theme.msgCanSkip(canBunk),
-              style: theme.fontBuilder(
-                color: theme.safeColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 2,
-            ),
-          ),
-        ],
-      );
+      icon = Icons.sentiment_satisfied_rounded;
+      c = theme.safeColor;
+      text = theme.msgCanSkip(canBunk);
     } else if (mustAttend == -1) {
-      return Row(
-        children: [
-          Icon(Icons.cancel_rounded,
-              size: 14, color: theme.dangerColor),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              theme.msgImpossible,
-              style: theme.fontBuilder(
-                color: theme.dangerColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 2,
-            ),
-          ),
-        ],
-      );
+      icon = Icons.cancel_rounded;
+      c = theme.dangerColor;
+      text = theme.msgImpossible;
     } else if (mustAttend > 0) {
-      return Row(
-        children: [
-          Icon(Icons.warning_amber_rounded,
-              size: 14, color: theme.dangerColor),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              theme.msgMustAttend(mustAttend),
-              style: theme.fontBuilder(
-                color: theme.dangerColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 2,
-            ),
-          ),
-        ],
-      );
+      icon = Icons.warning_amber_rounded;
+      c = theme.dangerColor;
+      text = theme.msgMustAttend(mustAttend);
     } else {
-      return Row(
-        children: [
-          Icon(Icons.check_circle_outline_rounded,
-              size: 14, color: theme.warningColor),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              theme.msgExactlyTarget,
-              style: theme.fontBuilder(
-                color: theme.warningColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 2,
-            ),
-          ),
-        ],
-      );
+      icon = Icons.check_circle_outline_rounded;
+      c = theme.warningColor;
+      text = theme.msgExactlyTarget;
     }
+
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: c),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.fontBuilder(color: c, fontSize: 12, fontWeight: FontWeight.w600),
+            maxLines: 2,
+          ),
+        ),
+      ],
+    );
   }
 }
 
-// ────────────────────────────────────────────────
-//  BUNK CALCULATOR SUMMARY CARD
-// ────────────────────────────────────────────────
-
-class _BunkSummaryCard extends StatefulWidget {
+/// Full bunk calculator shown as a draggable bottom sheet.
+class _BunkBottomSheet extends StatefulWidget {
   final List<SubjectAttendance> subjects;
   final double targetPercentage;
   final ValueChanged<double> onTargetChanged;
 
-  const _BunkSummaryCard({
+  const _BunkBottomSheet({
     required this.subjects,
     required this.targetPercentage,
     required this.onTargetChanged,
   });
 
   @override
-  State<_BunkSummaryCard> createState() => _BunkSummaryCardState();
+  State<_BunkBottomSheet> createState() => _BunkBottomSheetState();
 }
 
-class _BunkSummaryCardState extends State<_BunkSummaryCard> {
-  DateTime? _selectedEndDate;
+class _BunkBottomSheetState extends State<_BunkBottomSheet> {
+  late double _target;
 
-  Future<void> _pickEndDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedEndDate ?? now.add(const Duration(days: 90)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-      builder: (context, child) {
-        final theme = ThemeNotifier.instance.value;
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: theme.safeColor,
-              onPrimary: theme.cardColor,
-              surface: theme.backgroundColor,
-              onSurface: theme.textColor,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    
-    if (picked != null && mounted) {
-      setState(() => _selectedEndDate = picked);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Timetable sync required to calculate future attendance based on ${picked.day}/${picked.month}/${picked.year}'),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
-        )
-      );
-    }
+  @override
+  void initState() {
+    super.initState();
+    _target = widget.targetPercentage;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeNotifier.instance.value;
-    final bunkable = widget.subjects.where((s) => s.canBunk(widget.targetPercentage) > 0).toList();
-    final needAttend = widget.subjects.where((s) => s.mustAttend(widget.targetPercentage) > 0 || s.mustAttend(widget.targetPercentage) == -1).toList();
-    final totalBunkable = bunkable.fold<int>(0, (sum, s) => sum + s.canBunk(widget.targetPercentage));
-
-    final isAllSafe = needAttend.isEmpty;
-    final bannerColor = isAllSafe ? theme.safeColor : theme.dangerColor;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+    final bunkable = widget.subjects.where((s) => s.canBunk(_target) > 0).toList();
+    final needAttend = widget.subjects.where(
+      (s) => s.mustAttend(_target) > 0 || s.mustAttend(_target) == -1,
+    ).toList();
+    final totalBunkable = bunkable.fold<int>(0, (sum, s) => sum + s.canBunk(_target));
+    final allSafe = needAttend.isEmpty;
+    final accent = allSafe ? theme.safeColor : theme.dangerColor;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(24, 20, 24, bottomPad + 16),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: theme.cardRadius,
-        border: theme.cardBorder ?? Border.all(
-          color: bannerColor.withAlpha(80),
-          width: 2,
-        ),
-        boxShadow: theme.cardShadow,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: theme.cardBorder,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Icon(
-                isAllSafe ? Icons.celebration_rounded : Icons.warning_amber_rounded,
-                color: bannerColor,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'BUNK CALCULATOR',
-                style: theme.fontBuilder(
-                  color: theme.textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: theme.textColor.withAlpha(40),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ],
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Advanced Bunk Planner UI (Screenshot Style)
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'SEMESTER END DATE',
-                  style: theme.fontBuilder(
-                    color: theme.secondaryTextColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  'PLANNED BUNK DAYS',
-                  style: theme.fontBuilder(
-                    color: theme.secondaryTextColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: _pickEndDate,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.textColor.withAlpha(20)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _selectedEndDate != null 
-                              ? '${_selectedEndDate!.day}/${_selectedEndDate!.month}/${_selectedEndDate!.year}'
-                              : 'Select Date',
-                          style: theme.fontBuilder(color: theme.textColor, fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        Icon(Icons.calendar_month, size: 16, color: theme.secondaryTextColor),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Timetable sync required to omit specific working days.'))
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.textColor.withAlpha(20)),
-                    ),
-                    child: Text(
-                      'Select days',
-                      style: theme.fontBuilder(color: theme.textColor, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Target Percentage Selector
-          Text(
-            'TARGET ATTENDANCE',
-            style: theme.fontBuilder(
-              color: theme.secondaryTextColor,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
             ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 6,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
-                    activeTrackColor: theme.safeColor,
-                    inactiveTrackColor: theme.textColor.withAlpha(20),
-                    thumbColor: theme.textColor,
-                  ),
-                  child: Slider(
-                    value: widget.targetPercentage,
-                    min: 50,
-                    max: 100,
-                    divisions: 50,
-                    onChanged: widget.onTargetChanged,
+
+            // Title
+            Row(
+              children: [
+                Icon(
+                  allSafe ? Icons.celebration_rounded : Icons.warning_amber_rounded,
+                  color: accent,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'BUNK CALCULATOR',
+                  style: theme.fontBuilder(
+                    color: theme.textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.5,
                   ),
                 ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Target slider
+            Text(
+              'TARGET ATTENDANCE',
+              style: theme.fontBuilder(
+                color: theme.secondaryTextColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
               ),
-              const SizedBox(width: 12),
-              Text(
-                '${widget.targetPercentage.toInt()}%',
-                style: theme.fontBuilder(
-                  color: theme.textColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 6,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+                      activeTrackColor: theme.safeColor,
+                      inactiveTrackColor: theme.textColor.withAlpha(20),
+                      thumbColor: theme.textColor,
+                    ),
+                    child: Slider(
+                      value: _target,
+                      min: 50,
+                      max: 100,
+                      divisions: 50,
+                      onChanged: (v) {
+                        setState(() => _target = v);
+                        widget.onTargetChanged(v);
+                      },
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Text(
+                  '${_target.toInt()}%',
+                  style: theme.fontBuilder(color: theme.textColor, fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-          // Big summary line
-          if (isAllSafe && totalBunkable > 0) ...[
-            RichText(
-              text: TextSpan(
-                children: [
+            // Summary
+            if (allSafe && totalBunkable > 0)
+              RichText(
+                text: TextSpan(children: [
                   TextSpan(
                     text: 'You can bunk ',
                     style: theme.fontBuilder(color: theme.textColor, fontSize: 15),
                   ),
                   TextSpan(
                     text: '$totalBunkable',
-                    style: theme.fontBuilder(
-                      color: theme.safeColor,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: theme.fontBuilder(color: theme.safeColor, fontSize: 24, fontWeight: FontWeight.w900),
                   ),
                   TextSpan(
                     text: ' class${totalBunkable == 1 ? '' : 'es'}',
                     style: theme.fontBuilder(color: theme.textColor, fontSize: 15),
                   ),
                   TextSpan(
-                    text: ' total across all subjects and still stay above ${widget.targetPercentage.toInt()}%',
+                    text: ' total and stay above ${_target.toInt()}%',
                     style: theme.fontBuilder(color: theme.secondaryTextColor, fontSize: 13),
                   ),
-                ],
+                ]),
+              )
+            else if (!allSafe)
+              Text(
+                'Some subjects need attention!',
+                style: theme.fontBuilder(color: theme.dangerColor, fontSize: 16, fontWeight: FontWeight.w800),
+              )
+            else
+              Text(
+                'No attendance data to calculate.',
+                style: theme.fontBuilder(color: theme.secondaryTextColor, fontSize: 14),
               ),
-            ),
-          ] else if (!isAllSafe) ...[
-            Text(
-              'Some subjects need attention!',
-              style: theme.fontBuilder(
-                color: theme.dangerColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ] else ...[
-            Text(
-              'No attendance data to calculate.',
-              style: theme.fontBuilder(color: theme.secondaryTextColor, fontSize: 14),
-            ),
+
+            const SizedBox(height: 20),
+            Container(height: 1, color: theme.textColor.withAlpha(15)),
+            const SizedBox(height: 20),
+
+            // Per-subject breakdown
+            ...widget.subjects
+                .where((s) => s.attended != null && s.total != null)
+                .map((s) => _subjectRow(s, theme)),
           ],
+        ),
+      ),
+    );
+  }
 
-          const SizedBox(height: 16),
-          Container(height: 1, color: theme.textColor.withAlpha(20)),
-          const SizedBox(height: 16),
+  Widget _subjectRow(SubjectAttendance s, AppTheme theme) {
+    final canBunk = s.canBunk(_target);
+    final mustAttend = s.mustAttend(_target);
 
-          // Per-subject breakdown
-          ...widget.subjects.where((s) => s.attended != null && s.total != null).map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  // Subject name
-                  Expanded(
-                    child: Text(
-                      s.title,
-                      style: theme.fontBuilder(
-                        color: theme.textColor.withAlpha(200),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Bunk badge
-                  if (s.canBunk(widget.targetPercentage) > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.safeColor.withAlpha(30),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '✓ Can skip ${s.canBunk(widget.targetPercentage)}',
-                        style: theme.fontBuilder(
-                          color: theme.safeColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    )
-                  else if (s.mustAttend(widget.targetPercentage) == -1)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.dangerColor.withAlpha(30),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '✗ Impossible',
-                        style: theme.fontBuilder(
-                          color: theme.dangerColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    )
-                  else if (s.mustAttend(widget.targetPercentage) > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.dangerColor.withAlpha(30),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '✗ Attend ${s.mustAttend(widget.targetPercentage)}',
-                        style: theme.fontBuilder(
-                          color: theme.dangerColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      child: const Text(
-                        '⚠ At limit',
-                        style: TextStyle(
-                          color: Color(0xFFFACC15),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+    late String label;
+    late Color c;
+
+    if (canBunk > 0) {
+      label = '✓ Can skip $canBunk';
+      c = theme.safeColor;
+    } else if (mustAttend == -1) {
+      label = '✗ Impossible';
+      c = theme.dangerColor;
+    } else if (mustAttend > 0) {
+      label = '✗ Attend $mustAttend';
+      c = theme.dangerColor;
+    } else {
+      label = '⚠ At limit';
+      c = theme.warningColor;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              s.title,
+              style: theme.fontBuilder(color: theme.textColor.withAlpha(200), fontSize: 13, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: c.withAlpha(30),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              label,
+              style: theme.fontBuilder(color: c, fontSize: 12, fontWeight: FontWeight.w800),
             ),
           ),
         ],
