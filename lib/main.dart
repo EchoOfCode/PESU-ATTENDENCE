@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'services/background_service.dart';
 import 'services/storage_service.dart';
+import 'services/update_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'theme/theme_notifier.dart';
@@ -66,8 +67,22 @@ class PesuAttendanceApp extends StatelessWidget {
   }
 }
 
-class _EntryPoint extends StatelessWidget {
+class _EntryPoint extends StatefulWidget {
   const _EntryPoint();
+
+  @override
+  State<_EntryPoint> createState() => _EntryPointState();
+}
+
+class _EntryPointState extends State<_EntryPoint> {
+  @override
+  void initState() {
+    super.initState();
+    // Fire the update check once the widget tree is ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
