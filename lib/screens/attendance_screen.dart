@@ -9,6 +9,7 @@ import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final AttendanceData? initialData;
@@ -221,6 +222,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                                   ),
                                 ),
                               ),
+                              _iconBtn(Icons.settings_outlined, () {
+                                Navigator.push(context, MaterialPageRoute(
+                                  builder: (_) => const SettingsScreen(),
+                                ));
+                              }, theme),
+                              const SizedBox(width: 8),
                               _iconBtn(Icons.palette_outlined, _showThemePicker, theme),
                               const SizedBox(width: 8),
                               _iconBtn(Icons.widgets_outlined, _pinWidget, theme),

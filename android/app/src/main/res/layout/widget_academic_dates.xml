@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Academic dates ticker row (ISA/LWD) -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/academic_dates_text"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="🗓 ISA-1: 14 Apr  ·  LWD: 30 May"
+    android:textColor="#9AA0A6"
+    android:textSize="11sp"
+    android:textStyle="bold"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="6dp"
+    android:singleLine="true"
+    android:ellipsize="end" />

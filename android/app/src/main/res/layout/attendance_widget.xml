@@ -4,85 +4,24 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:padding="8dp"
     android:background="#00000000">
 
-    <!-- Header (Fake timetable placeholder / App info) -->
-    <TextView
-        android:id="@+id/widget_header_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="PESU Attendance"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:textStyle="normal"
-        android:layout_marginBottom="12dp"
-        android:layout_marginStart="4dp" />
-
-    <!-- Container for dynamic subjects list -->
+    <!-- All dynamic content is injected into this rounded container -->
     <LinearLayout
-        android:id="@+id/widget_subject_list"
+        android:id="@+id/widget_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
         android:background="@drawable/widget_background"
-        android:paddingVertical="8dp">
-        <!-- Rows will be injected here from Kotlin -->
-    </LinearLayout>
+        android:clipToPadding="false">
 
-    <!-- Legend -->
-    <LinearLayout
-        android:id="@+id/widget_legend_container"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginTop="16dp"
-        android:paddingBottom="8dp">
+        <!-- Section 1: Header row (date + last updated) — injected dynamically -->
+        <!-- Section 2: Next class row — injected dynamically -->
+        <!-- Section 3: Subject list — injected dynamically -->
+        <!-- Section 4: Academic dates — injected dynamically -->
+        <!-- Section 5: Funny quote footer — injected dynamically -->
 
-        <!-- Legend Safe -->
-        <ImageView
-            android:id="@+id/legend_dot_good"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:src="@drawable/dot_shape" />
-        <TextView
-            android:id="@+id/legend_text_good"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Safe"
-            android:textSize="12sp"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="16dp" />
-
-        <!-- Legend Warning -->
-        <ImageView
-            android:id="@+id/legend_dot_warning"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:src="@drawable/dot_shape" />
-        <TextView
-            android:id="@+id/legend_text_warning"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Warning"
-            android:textSize="12sp"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="16dp" />
-
-        <!-- Legend Danger -->
-        <ImageView
-            android:id="@+id/legend_dot_danger"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:src="@drawable/dot_shape" />
-        <TextView
-            android:id="@+id/legend_text_danger"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Danger"
-            android:textSize="12sp"
-            android:layout_marginStart="6dp" />
     </LinearLayout>
 
 </LinearLayout>
