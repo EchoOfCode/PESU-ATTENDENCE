@@ -1,7 +1,7 @@
 {
-  "latest_version": "1.0.0",
-  "latest_build": 1,
+  "latest_version": "1.0.1",
+  "latest_build": 2,
   "min_supported_version": "1.0.0",
-  "release_notes": "Initial release of PESU Attendance.",
+  "release_notes": "✨ Widget Overhaul: Timetable, academic calendar, and funny quotes!",
   "download_url": "https://github.com/EchoOfCode/PESU-ATTENDENCE/releases/latest"
 }
