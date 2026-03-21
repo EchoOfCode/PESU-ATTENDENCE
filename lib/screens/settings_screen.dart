@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/timetable.dart';
 import '../services/storage_service.dart';
+import '../services/pesu_scraper.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
 
@@ -60,6 +61,38 @@ class _SettingsScreenState extends State<SettingsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Saved & synced to widget ✓')),
       );
+    }
+  }
+
+  Future<void> _syncTimetable() async {
+    setState(() => _isLoading = true);
+    try {
+      final creds = await StorageService.getCredentials();
+      if (creds == null) throw Exception('Credentials not found. Please login again.');
+      
+      final scraper = PesuScraper();
+      // First login
+      await scraper.fetchAttendance(username: creds.username!, password: creds.password!);
+      // Then scrape target page
+      final newTt = await scraper.scrapeTimetable();
+      
+      if (mounted) {
+        setState(() {
+          _slots = newTt.slots;
+        });
+        await _save(); // This handles saving to disk and widget
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Timetable imported successfully! ✨')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: $e'), backgroundColor: ThemeNotifier.instance.value.dangerColor),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -136,6 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         slots: _slots,
                         theme: theme,
                         onSlotsChanged: (s) => setState(() => _slots = s),
+                        onSyncPressed: _syncTimetable,
                       ),
                       _DatesTab(
                         dates: _dates,
@@ -178,11 +212,13 @@ class _TimetableTab extends StatelessWidget {
   final List<ClassSlot> slots;
   final AppTheme theme;
   final ValueChanged<List<ClassSlot>> onSlotsChanged;
+  final VoidCallback onSyncPressed;
 
   const _TimetableTab({
     required this.slots,
     required this.theme,
     required this.onSlotsChanged,
+    required this.onSyncPressed,
   });
 
   static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -192,6 +228,9 @@ class _TimetableTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       children: [
+        const SizedBox(height: 16),
+        _syncButton(context),
+        const SizedBox(height: 8),
         // Grouped by day
         for (int day = 1; day <= 7; day++) ...[
           _dayHeader(day),
@@ -201,6 +240,21 @@ class _TimetableTab extends StatelessWidget {
         ],
         const SizedBox(height: 80),
       ],
+    );
+  }
+
+  Widget _syncButton(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onSyncPressed,
+      icon: const Icon(Icons.sync_rounded),
+      label: const Text('Auto-Sync from PESU Academy'),
+      style: FilledButton.styleFrom(
+        backgroundColor: theme.safeColor.withAlpha(20),
+        foregroundColor: theme.safeColor,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: theme.cardRadius),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+      ),
     );
   }
 
