@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timetable.dart';
 import '../services/storage_service.dart';
 import '../services/pesu_scraper.dart';
+import '../services/background_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
+import 'login_screen.dart';
 
 /// Settings screen for configuring the weekly timetable and academic dates.
 /// Changes are saved immediately and synced to the homescreen widget.
@@ -96,6 +99,65 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
+  void _showThemePicker() {
+    final theme = ThemeNotifier.instance.value;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: theme.cardBorder,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: AppThemeType.values.map((type) {
+              final isSelected = theme.type == type;
+              return ListTile(
+                title: Text(
+                  const {
+                    AppThemeType.defaultTheme: '(Default)',
+                    AppThemeType.funny: 'Procrastinator (Funny)',
+                    AppThemeType.cute: 'UwU (Cute)',
+                  }[type]!,
+                  style: theme.fontBuilder(
+                    color: theme.textColor,
+                    fontSize: 16,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check_circle, color: theme.safeColor)
+                    : null,
+                onTap: () {
+                  ThemeNotifier.instance.setTheme(type);
+                  Navigator.pop(context);
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _logout() async {
+    await StorageService.clearCredentials();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('attendance_data');
+    await prefs.remove('pesu_username');
+    await prefs.remove('pesu_password');
+    await cancelBackgroundTask();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeNotifier.instance.value;
@@ -127,6 +189,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                 ),
+                _actionBtn(Icons.palette_outlined, _showThemePicker, theme),
+                const SizedBox(width: 8),
+                _actionBtn(Icons.logout_rounded, _logout, theme),
+                const SizedBox(width: 8),
                 _actionBtn(Icons.save_rounded, _save, theme),
               ],
             ),

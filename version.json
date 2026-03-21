@@ -1,7 +1,7 @@
 {
-  "latest_version": "1.0.2",
-  "latest_build": 3,
+  "latest_version": "1.0.3",
+  "latest_build": 4,
   "min_supported_version": "1.0.0",
-  "release_notes": "✨ Added Auto-Sync from PESU Academy for the timetable!",
+  "release_notes": "✨ UI Layout fixes: Cleaned up the app bar and moved settings to a dedicated screen!",
   "download_url": "https://github.com/EchoOfCode/PESU-ATTENDENCE/releases/latest"
 }

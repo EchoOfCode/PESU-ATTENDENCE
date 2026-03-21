@@ -89,51 +89,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
   }
 
-  void _showThemePicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        final theme = ThemeNotifier.instance.value;
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: theme.cardBorder,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: AppThemeType.values.map((type) {
-              final isSelected = theme.type == type;
-              return ListTile(
-                title: Text(
-                  const {
-                    AppThemeType.defaultTheme: '(Default)',
-                    AppThemeType.funny: 'Procrastinator (Funny)',
-                    AppThemeType.cute: 'UwU (Cute)',
-                  }[type]!,
-                  style: theme.fontBuilder(
-                    color: theme.textColor,
-                    fontSize: 16,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-                trailing: isSelected
-                    ? Icon(Icons.check_circle, color: theme.safeColor)
-                    : null,
-                onTap: () {
-                  ThemeNotifier.instance.setTheme(type);
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
-          ),
-        );
-      },
-    );
-  }
-
   /// Shows the bunk calculator as a bottom sheet instead of inline,
   /// keeping the main feed clean and spacious.
   void _showBunkCalculator() {
@@ -167,20 +122,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
   }
 
-  Future<void> _logout() async {
-    await StorageService.clearCredentials();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('attendance_data');
-    await prefs.remove('pesu_username');
-    await prefs.remove('pesu_password');
-    await cancelBackgroundTask();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -228,17 +170,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                                 ));
                               }, theme),
                               const SizedBox(width: 8),
-                              _iconBtn(Icons.palette_outlined, _showThemePicker, theme),
-                              const SizedBox(width: 8),
                               _iconBtn(Icons.widgets_outlined, _pinWidget, theme),
-                              const SizedBox(width: 8),
-                              _iconBtn(
-                                _isRefreshing ? Icons.hourglass_top_rounded : Icons.refresh_rounded,
-                                _refresh,
-                                theme,
-                              ),
-                              const SizedBox(width: 8),
-                              _iconBtn(Icons.logout_rounded, _logout, theme),
                             ],
                           ),
                         ),
@@ -336,10 +268,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         borderRadius: BorderRadius.circular(12),
         splashColor: theme.textColor.withAlpha(20),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: theme.cardColor,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: theme.cardBorder,
           ),
           child: Icon(icon, color: theme.textColor, size: 20),
