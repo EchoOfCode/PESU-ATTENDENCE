@@ -167,13 +167,28 @@ class PesuScraper {
     final slotsJson = jsonDecode(templateMatch.group(1)!) as List<dynamic>;
     final scheduleJson = jsonDecode(scheduleMatch.group(1)!) as Map<String, dynamic>;
 
+    String formatTime(dynamic rawTime) {
+      if (rawTime is int) {
+        final h = (rawTime ~/ 60).toString().padLeft(2, '0');
+        final m = (rawTime % 60).toString().padLeft(2, '0');
+        return '$h:$m';
+      } else {
+        final s = rawTime.toString();
+        final parts = s.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+        }
+        return s;
+      }
+    }
+
     final Map<int, Map<String, String>> slotTimes = {};
     for (var s in slotsJson) {
       final map = s as Map<String, dynamic>;
       final orderedBy = map['orderedBy'] as int;
       slotTimes[orderedBy] = {
-        'start': map['startTime'].toString(),
-        'end': map['endTime'].toString(),
+        'start': formatTime(map['startTime']),
+        'end': formatTime(map['endTime']),
       };
     }
 

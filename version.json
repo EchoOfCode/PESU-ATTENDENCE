@@ -1,7 +1,7 @@
 {
-  "latest_version": "1.0.4",
-  "latest_build": 5,
+  "latest_version": "1.0.5",
+  "latest_build": 6,
   "min_supported_version": "1.0.0",
-  "release_notes": "🛠️ Refined bunk calculation presentation! (85% target by default)",
+  "release_notes": "🛠️ Smart Bunk logic: now uses Timetable + LWD to calculate your actual remaining classes! Plus, fixed a timetable timing bug.",
   "download_url": "https://github.com/EchoOfCode/PESU-ATTENDENCE/releases/latest"
 }

@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/timetable.dart';
 import '../models/attendance.dart';
 import '../services/pesu_scraper.dart';
 import '../services/storage_service.dart';
@@ -22,6 +23,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   AttendanceData? _data;
   bool _isRefreshing = false;
   double _targetPercentage = 85.0;
+  Map<String, int>? _futureClasses;
   late AnimationController _animController;
 
   @override
@@ -50,7 +52,48 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         if (stored != null) _data = stored;
         _targetPercentage = target;
       });
+      _recalcFutureClasses();
     }
+  }
+
+  Future<void> _recalcFutureClasses() async {
+    final tt = await StorageService.getTimetable();
+    final dates = await StorageService.getAcademicDates();
+    if (tt == null || dates?.lwd == null || _data == null) {
+      if (mounted) setState(() => _futureClasses = null);
+      return;
+    }
+
+    final lwd = dates!.lwd!;
+    final now = DateTime.now();
+    final map = <String, int>{};
+
+    for (final s in _data!.subjects) {
+      map[s.title] = 0;
+    }
+
+    var curr = DateTime(now.year, now.month, now.day);
+    final lwdDate = DateTime(lwd.year, lwd.month, lwd.day);
+    
+    while (!curr.isAfter(lwdDate)) {
+      final dow = curr.weekday;
+      final classes = tt.slots.where((s) => s.dayOfWeek == dow);
+      for (final c in classes) {
+        if (curr.day == now.day && curr.month == now.month && curr.year == now.year) {
+           if (c.endDateTime(now).isBefore(now)) continue; 
+        }
+        for (final title in map.keys) {
+           final tLow = title.toLowerCase();
+           final cLow = c.subjectTitle.toLowerCase();
+           if (tLow.contains(cLow) || cLow.contains(tLow)) {
+               map[title] = map[title]! + 1;
+               break;
+           }
+        }
+      }
+      curr = curr.add(const Duration(days: 1));
+    }
+    if (mounted) setState(() => _futureClasses = map);
   }
 
   Future<void> _updateTarget(double newTarget) async {
@@ -75,6 +118,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         setState(() => _data = data);
         await StorageService.saveAttendanceData(data);
         await StorageService.syncToWidget(data);
+        _recalcFutureClasses();
       }
     } catch (_) {
       if (mounted) {
@@ -96,6 +140,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => _BunkBottomSheet(
         subjects: _data!.subjects,
+        futureMap: _futureClasses,
         targetPercentage: _targetPercentage,
         onTargetChanged: (v) {
           _updateTarget(v);
@@ -203,6 +248,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                           child: _BunkQuickBar(
                             theme: theme,
                             subjects: _data!.subjects,
+                            futureMap: _futureClasses,
                             targetPercentage: _targetPercentage,
                             onTap: _showBunkCalculator,
                           ),
@@ -292,21 +338,23 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 class _BunkQuickBar extends StatelessWidget {
   final AppTheme theme;
   final List<SubjectAttendance> subjects;
+  final Map<String, int>? futureMap;
   final double targetPercentage;
   final VoidCallback onTap;
 
   const _BunkQuickBar({
     required this.theme,
     required this.subjects,
+    this.futureMap,
     required this.targetPercentage,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bunkable = subjects.where((s) => s.canBunk(targetPercentage) > 0);
+    final bunkable = subjects.where((s) => s.canBunk(targetPercentage, futureClasses: futureMap?[s.title]) > 0);
     final needAttend = subjects.where(
-      (s) => s.mustAttend(targetPercentage) > 0 || s.mustAttend(targetPercentage) == -1,
+      (s) => s.mustAttend(targetPercentage, futureClasses: futureMap?[s.title]) > 0 || s.mustAttend(targetPercentage, futureClasses: futureMap?[s.title]) == -1,
     );
     final allSafe = needAttend.isEmpty;
     final accent = allSafe ? theme.safeColor : theme.dangerColor;
@@ -629,11 +677,13 @@ class _SubjectCard extends StatelessWidget {
 /// Full bunk calculator shown as a draggable bottom sheet.
 class _BunkBottomSheet extends StatefulWidget {
   final List<SubjectAttendance> subjects;
+  final Map<String, int>? futureMap;
   final double targetPercentage;
   final ValueChanged<double> onTargetChanged;
 
   const _BunkBottomSheet({
     required this.subjects,
+    this.futureMap,
     required this.targetPercentage,
     required this.onTargetChanged,
   });
@@ -655,9 +705,9 @@ class _BunkBottomSheetState extends State<_BunkBottomSheet> {
   Widget build(BuildContext context) {
     final theme = ThemeNotifier.instance.value;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    final bunkable = widget.subjects.where((s) => s.canBunk(_target) > 0).toList();
+    final bunkable = widget.subjects.where((s) => s.canBunk(_target, futureClasses: widget.futureMap?[s.title]) > 0).toList();
     final needAttend = widget.subjects.where(
-      (s) => s.mustAttend(_target) > 0 || s.mustAttend(_target) == -1,
+      (s) => s.mustAttend(_target, futureClasses: widget.futureMap?[s.title]) > 0 || s.mustAttend(_target, futureClasses: widget.futureMap?[s.title]) == -1,
     ).toList();
     final allSafe = needAttend.isEmpty;
     final accent = allSafe ? theme.safeColor : theme.dangerColor;
@@ -803,8 +853,8 @@ class _BunkBottomSheetState extends State<_BunkBottomSheet> {
   }
 
   Widget _subjectRow(SubjectAttendance s, AppTheme theme) {
-    final canBunk = s.canBunk(_target);
-    final mustAttend = s.mustAttend(_target);
+    final canBunk = s.canBunk(_target, futureClasses: widget.futureMap?[s.title]);
+    final mustAttend = s.mustAttend(_target, futureClasses: widget.futureMap?[s.title]);
 
     late String label;
     late Color c;

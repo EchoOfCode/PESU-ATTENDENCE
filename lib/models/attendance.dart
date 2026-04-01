@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 /// Represents a single subject's attendance data scraped from PESU Academy.
 class SubjectAttendance {
@@ -43,26 +44,46 @@ class SubjectAttendance {
   }
 
   /// How many consecutive classes can be skipped and still stay >= [target]%.
-  int canBunk(double target) {
+  /// If [futureClasses] is provided, calculates how many classes out of the remaining scheduled classes can be skipped.
+  int canBunk(double target, {int? futureClasses}) {
     if (attended == null || total == null || total == 0) return 0;
     final f = target / 100.0;
-    final max = (attended! / f) - total!;
-    return max < 0 ? 0 : max.floor();
+    
+    if (futureClasses != null) {
+      final totalExpected = total! + futureClasses;
+      final maxSkips = attended! + futureClasses - (f * totalExpected);
+      if (maxSkips < 0) return 0;
+      return min(maxSkips.floor(), futureClasses);
+    } else {
+      final max = (attended! / f) - total!;
+      return max < 0 ? 0 : max.floor();
+    }
   }
 
   /// How many extra classes must be attended to reach [target]%.
   /// Returns -1 when the target is mathematically impossible.
-  int mustAttend(double target) {
+  int mustAttend(double target, {int? futureClasses}) {
     if (attended == null || total == null || total == 0) return 0;
-    if (percentage != null && percentage! >= target) return 0;
+    
+    // If not using future classes terminology, we optionally short-circuit:
+    if (futureClasses == null && percentage != null && percentage! >= target) return 0;
 
     if (target >= 100.0) {
       return attended! < total! ? -1 : 0;
     }
 
     final f = target / 100.0;
-    final needed = ((f * total!) - attended!) / (1 - f);
-    return needed <= 0 ? 0 : needed.ceil();
+    
+    if (futureClasses != null) {
+      final totalExpected = total! + futureClasses;
+      final needed = (f * totalExpected) - attended!;
+      if (needed <= 0) return 0;
+      final y = needed.ceil();
+      return y > futureClasses ? -1 : y;
+    } else {
+      final needed = ((f * total!) - attended!) / (1 - f);
+      return needed <= 0 ? 0 : needed.ceil();
+    }
   }
 }
 
