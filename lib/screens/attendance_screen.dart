@@ -3,12 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/attendance.dart';
-import '../services/background_service.dart';
 import '../services/pesu_scraper.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
-import 'login_screen.dart';
 import 'settings_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -23,7 +21,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     with SingleTickerProviderStateMixin {
   AttendanceData? _data;
   bool _isRefreshing = false;
-  double _targetPercentage = 75.0;
+  double _targetPercentage = 85.0;
   late AnimationController _animController;
 
   @override
@@ -46,7 +44,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   Future<void> _loadStoredData() async {
     final stored = await StorageService.getAttendanceData();
     final prefs = await SharedPreferences.getInstance();
-    final target = prefs.getDouble('bunk_target') ?? 75.0;
+    final target = prefs.getDouble('bunk_target') ?? 85.0;
     if (mounted) {
       setState(() {
         if (stored != null) _data = stored;
@@ -307,7 +305,6 @@ class _BunkQuickBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bunkable = subjects.where((s) => s.canBunk(targetPercentage) > 0);
-    final totalBunkable = bunkable.fold<int>(0, (sum, s) => sum + s.canBunk(targetPercentage));
     final needAttend = subjects.where(
       (s) => s.mustAttend(targetPercentage) > 0 || s.mustAttend(targetPercentage) == -1,
     );
@@ -338,7 +335,7 @@ class _BunkQuickBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   allSafe
-                      ? 'You can bunk $totalBunkable class${totalBunkable == 1 ? '' : 'es'} total'
+                      ? 'Safe in ${bunkable.length} subject${bunkable.length == 1 ? '' : 's'} above ${targetPercentage.toInt()}%'
                       : '${needAttend.length} subject${needAttend.length == 1 ? '' : 's'} need attention',
                   style: theme.fontBuilder(
                     color: theme.textColor,
@@ -615,6 +612,20 @@ class _SubjectCard extends StatelessWidget {
   }
 }
 
+// //// Full Bunk Cal 
+// class _BunkBottomSheet extends StateFulWidget
+//   final List<SubjectAttendance> subjects;
+//   final double targetPercentage;
+//   final ValueChanged<double> onTargetChanged;
+
+/* const _BUnkBottomSheet({
+  
+  
+  
+  
+  
+  */
+
 /// Full bunk calculator shown as a draggable bottom sheet.
 class _BunkBottomSheet extends StatefulWidget {
   final List<SubjectAttendance> subjects;
@@ -648,7 +659,6 @@ class _BunkBottomSheetState extends State<_BunkBottomSheet> {
     final needAttend = widget.subjects.where(
       (s) => s.mustAttend(_target) > 0 || s.mustAttend(_target) == -1,
     ).toList();
-    final totalBunkable = bunkable.fold<int>(0, (sum, s) => sum + s.canBunk(_target));
     final allSafe = needAttend.isEmpty;
     final accent = allSafe ? theme.safeColor : theme.dangerColor;
 
@@ -725,9 +735,9 @@ class _BunkBottomSheetState extends State<_BunkBottomSheet> {
                     ),
                     child: Slider(
                       value: _target,
-                      min: 50,
+                      min: 60,
                       max: 100,
-                      divisions: 50,
+                      divisions: 8,
                       onChanged: (v) {
                         setState(() => _target = v);
                         widget.onTargetChanged(v);
@@ -746,23 +756,23 @@ class _BunkBottomSheetState extends State<_BunkBottomSheet> {
             const SizedBox(height: 24),
 
             // Summary
-            if (allSafe && totalBunkable > 0)
+            if (allSafe && bunkable.isNotEmpty)
               RichText(
                 text: TextSpan(children: [
                   TextSpan(
-                    text: 'You can bunk ',
-                    style: theme.fontBuilder(color: theme.textColor, fontSize: 15),
+                    text: 'Safe in ',
+                    style: theme.fontBuilder(color: theme.textColor, fontSize: 16),
                   ),
                   TextSpan(
-                    text: '$totalBunkable',
+                    text: '${bunkable.length}',
                     style: theme.fontBuilder(color: theme.safeColor, fontSize: 24, fontWeight: FontWeight.w900),
                   ),
                   TextSpan(
-                    text: ' class${totalBunkable == 1 ? '' : 'es'}',
-                    style: theme.fontBuilder(color: theme.textColor, fontSize: 15),
+                    text: ' subject${bunkable.length == 1 ? '' : 's'}',
+                    style: theme.fontBuilder(color: theme.textColor, fontSize: 16),
                   ),
                   TextSpan(
-                    text: ' total and stay above ${_target.toInt()}%',
+                    text: '\nScroll down to view details.',
                     style: theme.fontBuilder(color: theme.secondaryTextColor, fontSize: 13),
                   ),
                 ]),
@@ -798,6 +808,7 @@ class _BunkBottomSheetState extends State<_BunkBottomSheet> {
 
     late String label;
     late Color c;
+
 
     if (canBunk > 0) {
       label = '✓ Can skip $canBunk';

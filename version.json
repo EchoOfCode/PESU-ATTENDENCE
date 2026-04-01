@@ -1,7 +1,7 @@
 {
-  "latest_version": "1.0.3",
-  "latest_build": 4,
+  "latest_version": "1.0.4",
+  "latest_build": 5,
   "min_supported_version": "1.0.0",
-  "release_notes": "✨ UI Layout fixes: Cleaned up the app bar and moved settings to a dedicated screen!",
+  "release_notes": "🛠️ Refined bunk calculation presentation! (85% target by default)",
   "download_url": "https://github.com/EchoOfCode/PESU-ATTENDENCE/releases/latest"
 }

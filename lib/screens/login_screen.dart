@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/attendance.dart';
 import '../services/pesu_scraper.dart';
 import '../services/storage_service.dart';
 import '../services/background_service.dart';

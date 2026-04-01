@@ -71,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     setState(() => _isLoading = true);
     try {
       final creds = await StorageService.getCredentials();
-      if (creds == null) throw Exception('Credentials not found. Please login again.');
+      if (creds.username == null || creds.password == null) throw Exception('Credentials not found. Please login again.');
       
       final scraper = PesuScraper();
       // First login
@@ -84,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           _slots = newTt.slots;
         });
         await _save(); // This handles saving to disk and widget
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Timetable imported successfully! ✨')),
         );

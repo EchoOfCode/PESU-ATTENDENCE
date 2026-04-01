@@ -5,22 +5,18 @@ import 'storage_service.dart';
 const String _taskName = 'com.pesu.attendance.refresh';
 const String _taskTag = 'attendance_refresh';
 
-/// Top-level entry point for WorkManager.
-/// Must be a static / top-level function so Android can invoke it
-/// even when the Flutter engine isn't running.
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((_, __) async {
     try {
       return await _refreshAttendance();
     } catch (_) {
-      // Always return true so WorkManager doesn't apply increasing backoff.
       return true;
     }
   });
 }
 
-/// Schedules a periodic background refresh (roughly every hour).
+
 Future<void> registerBackgroundTask() async {
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
   await Workmanager().registerPeriodicTask(
@@ -42,7 +38,7 @@ Future<void> cancelBackgroundTask() async {
   await Workmanager().cancelByTag(_taskTag);
 }
 
-/// One-shot refresh usable from both the widget tap and pull-to-refresh.
+
 Future<bool> performManualRefresh() => _refreshAttendance();
 
 Future<bool> _refreshAttendance() async {
